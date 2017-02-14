@@ -11,6 +11,10 @@ This API is composed by different endpoints which serve different purposes.
 An application will use this API to register itself within the destination server. It may perform a registration for each different server it needs to send messages to.
 1. __/app/verify/__  
 Allows an application to test if it is correctly registered within the destination server.
+1. __/app/update/__  
+Allows an application to update some information about itself.
+1. __/app/delete/__  
+Allows an application to be removed from the server.
 1. __/sub/request/__  
 A registered application will use this endpoint to ask for permission for sending messages to an specific user within that server.
 1. __/sub/verify/__  
@@ -33,12 +37,30 @@ A registered application may use this API to send messages to a set of subscribe
 > TCP Header: \<server_port>  
 > HTTP 'Host' header value: \<server_addr>  
 
+## Typical Flow
+Example of a typical flow, ignoring checks, updates etc.
+```
+Server %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Application  
+
+1) Application registers and stores unique_id, shared_key and root_secret from response.
+           <-- register ----|  
+            |---------------> 
+
+2) Application provides unique_id, shared_key and a user to ask him for subscription permission
+           <-- subscription --|
+            |-----------> ack
+
+3) Once user has accepted, app can send messages using shared_key and unique_id
+           <----- message ----|
+            |-----------> ack 
+````
+
 ## Endpoints
 
 ### `/app/register/`
 
-#### Registering in a remote server
-So as to send messages to users behind a remote server, an application must register itself and obtain a shared_key and a unique_id. This application must store this values for each server it needs to connect to.
+#### Register application
+So as to send messages to users behind a remote server, an application must register itself and obtain a shared_key and a unique_id. This application must store this values for each server it needs to connect to so as to send messages.
 
 #### Request
 HTTP headers:
@@ -51,20 +73,88 @@ Content-Type: application/json
 Parameters (after a line break)
 ```
 | application (object)[*]
-    | unique_id (string)[# only if updating info]
-    | shared_key (string)[# only if updating info]
     | title (string)[*]
     | description (string)
     | url (string)
 ```
-Register process:
-- Omit unique_id and shared_key and store those from response
-Update process:
-- Include unique_id and shared_key 
-- Remember that the title can never be changed so it will be ignored
-- Server will regenerate the shared_key. unique_id should never change.
-- For that key to apply, a verification should be used, read /app/verify
-- After that new key will be used.
+
+#### Response
+HTTP response:
+- Everything good: **200 OK**  
+   "info" must be sent
+- Error Found: **403 Forbidden**  
+   "error" must be sent
+
+Only error and one subfield is mandatory in case of an error. The server must check for the first error it encounters in the following list.
+```
+| error (object)
+   | wrong_request (boolean)
+| info
+   | shared_key[*]
+   | unique_id[*]
+   | root_secret[*]
+   
+```
+An app should store all returned values, it will only last one if special cases though.
+
+### `/app/verify/`
+
+#### Verify registration
+An application may use this endpoint to verify it's current condition on a server.  
+
+#### Request
+HTTP headers:
+````
+POST /app/register
+Host: <server_addr>
+Content-Type: application/json
+````
+
+Parameters (after a line break)
+```
+| application (object)[*]
+    | unique_id (string)[*]
+    | shared_key (string)[*]
+```
+
+#### Response
+HTTP response:
+- Everything good: **200 OK**  
+   "info" will optionally be supplied
+- Error Found: **403 Forbidden**  
+   "error" must be sent
+
+Only error and another extra field is mandatory in case of an error. The server must check for the first error it encounters in the following list.
+```
+| error (object)
+   | wrong_request (boolean)              # malformed
+   | not_registered (boolean)             # wrong data or not registered 
+| info
+   | unsecured_source (boolean)
+```
+### `/app/update/`
+
+#### Register application
+So as to send messages to update or add information about the application such us the url. Note that **title** can not be updated.
+
+#### Request
+HTTP headers:
+````
+POST /app/update
+Host: <server_addr>
+Content-Type: application/json
+````
+
+Parameters (after a line break)
+```
+| application (object)[*]
+    | unique_id (string)[*]
+    | root_secret (string)[*]
+    | shared_key (string)[*]
+    | description (string)
+    | url (string)
+```
+- Server will regenerate the shared_key. unique_id or root_secret should never change.
 
 #### Response
 HTTP response:
@@ -78,17 +168,51 @@ Only error and another extra field is mandatory in case of an error. The server 
 | error (object)
    | wrong_request (boolean)
    | not_registered (boolean)             # update info failed 
+   | wrong_root_secret (boolean)          
 | info
    | shared_key[*]
    | unique_id[*]
    
 ```
-A 'list' type message may not fail even if users are not subscribed.
 
-
-### `/app/verify/`
+### `/app/remove/`
 
 #### Verify registration
+An application may use this endpoint to get removed from the server.
+
+#### Request
+HTTP headers:
+````
+POST /app/remove
+Host: <server_addr>
+Content-Type: application/json
+````
+
+Parameters (after a line break)
+```
+| application (object)[*]
+    | unique_id (string)[*]
+    | shared_key (string)[*]
+    | root_secret (string)[*]
+```
+
+#### Response
+HTTP response:
+- Everything good: **200 OK**  
+- Error Found: **403 Forbidden**  
+   "error" must be sent
+
+Only error and another extra field is mandatory in case of an error. The server must check for the first error it encounters in the following list.
+```
+| error (object)
+   | wrong_request (boolean)
+   | not_registered (boolean)             # update info failed 
+   | wrong_root_secret (boolean)  
+```
+
+### `/sub/register/`
+
+#### Register Subscription
 An application may use this endpoint to verify it's current condition on a server.  
 The application is required to verify after a registration update for the new shared_key to be used.  
 If new key is used, then that will be the new key, and the application will be marked as secured as long as registration and verification have been done using https. If old key is used, that one will remain as the app shared_key and source will be marked as unsecured.
@@ -123,12 +247,11 @@ Only error and another extra field is mandatory in case of an error. The server 
 | info
    | shared_key[*]
    | unique_id[*]
+````
 
-#### Example
-### `/sub/register/`
-#### Example
 ### `/sub/verify/`
-#### Example
+
+TODO
 
 ### `/msg/send/`
 
