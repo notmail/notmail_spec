@@ -1,8 +1,8 @@
-# Send API
-HTTP API which server uses to receive messages
+# APPLICATION API
+HTTP API which is used to send messages to other users. This API is accessed in the destination's user's server.
 
 ## Description
-**Send API** should be always used to send messages to any destination.  
+**APPLICATION API** should be always used to send messages to any destination.  
 When an application uses this API to send messages it needs to register within the server first, then it can ask for permission to be able to send messages to an specific user, and finally it can send them any time.
 
 This API is composed by different endpoints which serve different purposes.
@@ -21,7 +21,7 @@ A registered application may use this API to send messages to a set of subscribe
 ## Notes
 > As a summary from the document 'server address resolution' and 'glossary' this are the main values that need to be considered when forgin HTTP messages.
 >  
-> Each user is identifies within a server by it's *notmail*  
+> Each user is identified within a server by it's *notmail*  
 > **\<notmail> = \<user>@\<server>**  
 > 
 > Each server will present the following data as server address on a DNS resolution  
@@ -37,9 +37,93 @@ A registered application may use this API to send messages to a set of subscribe
 
 ### `/app/register/`
 
-#### Example
+#### Registering in a remote server
+So as to send messages to users behind a remote server, an application must register itself and obtain a shared_key and a unique_id. This application must store this values for each server it needs to connect to.
+
+#### Request
+HTTP headers:
+````
+POST /app/register
+Host: <server_addr>
+Content-Type: application/json
+````
+
+Parameters (after a line break)
+```
+| application (object)[*]
+    | unique_id (string)[# only if updating info]
+    | shared_key (string)[# only if updating info]
+    | title (string)[*]
+    | description (string)
+    | url (string)
+```
+Register process:
+- Omit unique_id and shared_key and store those from response
+Update process:
+- Include unique_id and shared_key 
+- Remember that the title can never be changed so it will be ignored
+- Server will regenerate the shared_key. unique_id should never change.
+- For that key to apply, a verification should be used, read /app/verify
+- After that new key will be used.
+
+#### Response
+HTTP response:
+- Everything good: **200 OK**  
+   "info" must be supplied
+- Error Found: **403 Forbidden**  
+   "error" must be sent
+
+Only error and another extra field is mandatory in case of an error. The server must check for the first error it encounters in the following list.
+```
+| error (object)
+   | wrong_request (boolean)
+   | not_registered (boolean)             # update info failed 
+| info
+   | shared_key[*]
+   | unique_id[*]
+   
+```
+A 'list' type message may not fail even if users are not subscribed.
+
 
 ### `/app/verify/`
+
+#### Verify registration
+An application may use this endpoint to verify it's current condition on a server.  
+The application is required to verify after a registration update for the new shared_key to be used.  
+If new key is used, then that will be the new key, and the application will be marked as secured as long as registration and verification have been done using https. If old key is used, that one will remain as the app shared_key and source will be marked as unsecured.
+
+#### Request
+HTTP headers:
+````
+POST /app/register
+Host: <server_addr>
+Content-Type: application/json
+````
+
+Parameters (after a line break)
+```
+| application (object)[*]
+    | unique_id (string)[*]
+    | shared_key (string)[*]
+```
+
+#### Response
+HTTP response:
+- Everything good: **200 OK**  
+   "info" will optionally be supplied
+- Error Found: **403 Forbidden**  
+   "error" must be sent
+
+Only error and another extra field is mandatory in case of an error. The server must check for the first error it encounters in the following list.
+```
+| error (object)
+   | wrong_request (boolean)              # malformed
+   | not_registered (boolean)             # wrong data or not registered 
+| info
+   | shared_key[*]
+   | unique_id[*]
+
 #### Example
 ### `/sub/register/`
 #### Example
@@ -49,7 +133,7 @@ A registered application may use this API to send messages to a set of subscribe
 ### `/msg/send/`
 
 #### Sending messages
-To send a message to a user the server must be registered and the user must have allowed it to send messages to him. Application must have the unique_id and a shared_key.  
+To send a message to a user the server must be registered and the user must have allowed it to send him messages. Applications must store the unique_id and a shared_key.  
 
 POST method should be used to send a message.
 
@@ -66,10 +150,10 @@ Parameters (after a line break)
 | application (object)[*]
    | unique_id (string)[*]
    | shared_key (string)[*]
-| user (string)[only on single]
-| users (array of strings)[only on list]
+| user (string)[# only on single]           
+| users (array of strings)[# only on list]
 | message (object)[*]
-   | type (string)[*]
+   | type (string)[# default if omitted]
    | msg (string)[*]
    | title (string)
    | deliver_time (string)
@@ -77,17 +161,17 @@ Parameters (after a line break)
    | ack (boolean)
 ```
 message types are:
-   - single
+   - single [# default if omitted]
    - list
 
-#### Response Fields
+#### Response
 HTTP response:
 - Everything good: **200 OK**  
    "info" may be supplied
 - Error Found: **403 Forbidden**  
-   "error" must be send
+   "error" must be sent
 
-Only error and another extra field is mandatory in case of an error. The server must check for the first error it encounters in the following 
+Only error and another extra field is mandatory in case of an error. The server must check for the first error it encounters in the following list.
 ```
 | error (object)
    | wrong_request (boolean)
@@ -98,6 +182,7 @@ Only error and another extra field is mandatory in case of an error. The server 
    | unsuscribed_users (array of strings) # from 'users' origin field
    | msg_id [only for ack messages]
 ```
+A 'list' type message may not fail even if users are not subscribed.
 
 
 #### Request Example
@@ -112,7 +197,7 @@ Accept: application/json
       "unique_id":"13",
       "shared_key":"a8324kjho34uo23jjo234"
    },
-   "user":"user1",
+   "user":"user1@server.com",
    "message":{
       "title":"New notification",
       "msg":"Hi!"
