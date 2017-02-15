@@ -53,7 +53,7 @@ Server %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Application
 3) Once user has accepted, app can send messages using shared_key and unique_id
            <----- message ----|
             |-----------> ack 
-````
+```
 
 ## Endpoints
 
@@ -213,9 +213,8 @@ Only error and another extra field is mandatory in case of an error. The server 
 ### `/sub/register/`
 
 #### Register Subscription
-An application may use this endpoint to verify it's current condition on a server.  
-The application is required to verify after a registration update for the new shared_key to be used.  
-If new key is used, then that will be the new key, and the application will be marked as secured as long as registration and verification have been done using https. If old key is used, that one will remain as the app shared_key and source will be marked as unsecured.
+Once an application is registered in the destination server it must ask for permission to each user it wants to send messages to.  
+This is called subscription registering. Subscriptions are 'asked' using this endpoint and only last for a few minutes after they expire. They show a message to the user in both sides, that should be observed and manually compare to ensure that there is no third party attempting to rob the subscription.
 
 #### Request
 HTTP headers:
@@ -230,6 +229,46 @@ Parameters (after a line break)
 | application (object)[*]
     | unique_id (string)[*]
     | shared_key (string)[*]
+| user (string)[*]
+```
+
+#### Response
+HTTP response:
+- Everything good: **200 OK**  
+   "info" must be supplied
+- Error Found: **403 Forbidden**  
+   "error" must be sent
+
+Only error and another extra field is mandatory in case of an error. The server must check for the first error it encounters in the following list.
+```
+| error (object)
+   | wrong_request (boolean)              # malformed
+   | not_registered (boolean)             # wrong data or not 
+   registered 
+   | no_user (boolean)
+| info
+   | validation (-4 digit number- string)[*]
+```
+
+### `/sub/verify/`
+
+#### Verify subscription
+An application may use this endpoint to verify if it is allowed to send messages to a user.
+
+#### Request
+HTTP headers:
+````
+POST /app/register
+Host: <server_addr>
+Content-Type: application/json
+````
+
+Parameters (after a line break)
+```
+| application (object)[*]
+    | unique_id (string)[*]
+    | shared_key (string)[*]
+| user (string)[*]
 ```
 
 #### Response
@@ -243,15 +282,8 @@ Only error and another extra field is mandatory in case of an error. The server 
 ```
 | error (object)
    | wrong_request (boolean)              # malformed
-   | not_registered (boolean)             # wrong data or not registered 
-| info
-   | shared_key[*]
-   | unique_id[*]
-````
-
-### `/sub/verify/`
-
-TODO
+   | not_subscribed (boolean)             # not subscribed 
+```
 
 ### `/msg/send/`
 
