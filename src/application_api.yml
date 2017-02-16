@@ -1,0 +1,261 @@
+# Notmail application API in yaml+markdown using swagger
+swagger: '2.0'
+
+# API information
+info:
+  version: "1.0.0"
+  title: Notmail - Application API
+  description: |
+    ## Introduction
+    **APPLICATION API** should always be used to send messages to any destination from an application.  
+    
+    When an application uses this API to send messages, it needs to register within the server first, then it can ask for permission to be able to send messages to an specific user, and finally it can send them at any time.
+    
+    This API is composed by different endpoints which serve multiple purposes.
+    
+    1. __/app/index/__
+    An application will use this API to register itself within the destination server. It may also check it's current status, update information and delete itself from the index.
+    
+    1. __/app/sub/__
+    A registered application will use this endpoint to ask for permission for sending messages to an specific user within that server. It may also check it's current condition on the user's intention.
+    
+    1. __/app/msg/__  
+    A registered application may use this API to send messages to a set of subscribed users
+    
+    
+    ## Helpful Notes
+    > As a summary from the document 'server address resolution' and 'glossary' this are the main values that need to be considered when forgin HTTP messages.
+    >  
+    > Each user is identified within a server by it's *notmail*  
+    > **\<notmail> = \<user>@\<server>**  
+    > 
+    > Each server will present the following data as server address on a DNS resolution  
+    > **\<server_addr> = \<server_ip>:\<server_port>**
+    >
+    > This data should be saved by the application in order to use this API.
+    > Then all messages should contain the following data:  
+    > IP Header: \<server_ip>  
+    > TCP Header: \<server_port>  
+    > HTTP 'Host' header value: \<server_addr>  
+    
+    ## Typical Flow
+    Example of a typical flow, ignoring checks, updates etc.
+    ```
+    Server %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Application  
+    
+    1) Application registers and stores unique_id, shared_key and root_secret from response.
+               <-- register ----|  
+                |---------------> 
+    
+    2) Application provides unique_id, shared_key and a user to ask him for subscription permission
+               <-- subscription --|
+                |-----------> ack
+    
+    3) Once user has accepted, app can send messages using shared_key and unique_id
+               <----- message ----|
+                |-----------> ack 
+    ```
+    
+    ## Data groups
+    All data is structured in the following object groups, and should be sent and received in those groups as root elements when they are sent in the body of the http message.
+    ```
+    > (only on http error messages)
+    | app
+      | title
+      | description
+      | url
+    | auth
+      | unique_id
+      | shared_key
+      | root_secret
+    | destination
+      | user
+      | users
+    | msg
+      | title
+      | data
+      | priority
+      | deliver_time
+      | alert_time
+      | ack
+      
+    > (only on http error messages)
+    | error 
+    ```
+
+
+basePath: /app
+schemes:
+  - http
+
+paths:
+  # APPLICATION INDEX ENDPOINT
+  /index:
+    post:
+      description: |
+        So as to send messages to users behind a remote server, an application must register itself and obtain a shared_key and a unique_id.  
+        
+        This application must store this values for each server it needs to connect to so as to send messages.  
+        
+        It will also obtain a root_secret wich can be use for administration purposes only.
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - in: body
+          name: app
+          description: | 
+            Title is **required**
+          required: true
+          schema:
+            type: object
+            required: 
+              - app
+            properties:
+              app:
+                $ref: "#/definitions/app"
+      responses:
+        "201":
+          description: Registration succesful
+          schema:
+            $ref: "#/definitions/auth"
+          headers:
+            location:
+              description: "The url of the new application"
+              type: string
+        "400":
+          description: Bad Request
+        "401":
+          description: Unauthorized. Only if server does not allow public registration of new applications.
+        
+  /index/{unique_id}:
+    put:
+      description: |
+        To update or add information about the application such us the url or the description. Note that **title** cannot be updated.
+        - Server will regenerate the shared_key.  
+        - unique_id or root_secret should never change.
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - $ref: "#/parameters/unique_id"
+        - $ref: "#/parameters/shared_key"
+        - in: body
+          name: app
+          description: | 
+            Title is **ignored**
+          required: true
+          schema:
+            type: object
+            required: 
+              - application
+            properties:
+              application:
+                $ref: "#/definitions/app"
+      responses:
+        "200":
+          description: Update succesful
+          schema:
+            type: object
+            required:
+              - shared_key
+            properties:
+              shared_key:
+                $ref: "#/definitions/shared_key"
+        "400":
+          description: Bad Request.
+        "401":
+          description: Unauthorized. Application not authorized / registered.
+        "402":
+          description: Forbidden. Wrong root_secret.
+          
+    get:
+      description: |
+        An application may use this endpoint to verify it's current state on a server.
+      produces:
+        - application/json
+      parameters:
+        - $ref: "#/parameters/unique_id"
+        - $ref: "#/parameters/shared_key"
+      responses:
+        "200":
+          description: App is registered
+          schema:
+            type: object
+            required: 
+              - app
+            properties:
+              app:
+                $ref: "#/definitions/app"
+        "400":
+          description: Bad Request.
+        "401":
+          description: Unauthorized. Application not authorized / registered.
+definitions:
+
+  app:
+    type: object
+    properties:
+      title:
+        type: string
+        description: title of the application
+      description:
+        type: string
+        description: description of the application
+      url:
+        type: string
+        description: url of the application
+
+  auth:
+    type: object
+    required:
+      - unique_id
+      - shared_key
+      - root_secret
+    properties:
+      unique_id:
+        $ref: "#/definitions/unique_id"
+      shared_key:
+        $ref: "#/definitions/shared_key"
+      root_secret:
+        $ref: "#/definitions/root_secret"
+        
+        
+  unique_id:
+    type: string
+    description: Id to locate applicarion in the server as part of a uri
+    
+  shared_key:
+    type: string
+    description: Key to authenticate this application within the server
+  
+  root_secret:
+    type: string
+    description: Secret code to be kept for administration purposes.
+
+parameters:
+  
+  unique_id:
+    name: unique_id
+    in: path
+    required: true
+    type: string
+    description: Id to locate applicarion in the server as part of a uri
+
+  shared_key:
+    name: shared_key
+    in: query
+    required: true
+    type: string
+    description: Key to authenticate this application within the server
+
+  root_secret:
+    name: root_secret
+    in: query
+    required: true
+    type: string
+    description: Secret code to be kept for administration purposes.
+
+    
