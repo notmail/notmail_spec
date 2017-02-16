@@ -13,10 +13,10 @@ info:
     
     This API is composed by different endpoints which serve multiple purposes.
     
-    1. __/app/index/__
+    1. __/app/index/__  
     An application will use this API to register itself within the destination server. It may also check it's current status, update information and delete itself from the index.
     
-    1. __/app/sub/__
+    1. __/app/sub/__  
     A registered application will use this endpoint to ask for permission for sending messages to an specific user within that server. It may also check it's current condition on the user's intention.
     
     1. __/app/msg/__  
@@ -60,27 +60,29 @@ info:
     All data is structured in the following object groups, and should be sent and received in those groups as root elements when they are sent in the body of the http message.
     ```
     > (only on http error messages)
-    | app
-      | title
-      | description
-      | url
-    | auth
-      | unique_id
-      | shared_key
-      | root_secret
-    | destination
-      | user
-      | users
-    | msg
-      | title
-      | data
-      | priority
-      | deliver_time
-      | alert_time
-      | ack
+    | app ({})
+      | title (string)
+      | description (string)
+      | url (string)
+    | auth ({})
+      | unique_id (string)
+      | shared_key (string)
+      | root_secret (string)
+    | dest ({})
+      | user (string)
+      | users (string)
+    | msg ({})
+      | title (string)
+      | data (string)
+      | priority (string)
+      | deliver_time (string)
+      | alert_time (string)
+      | ack (string)
+    | info ({})
+      | validation (string)
       
     > (only on http error messages)
-    | error 
+    | error ({})
     ```
 
 
@@ -91,6 +93,7 @@ schemes:
 paths:
   # APPLICATION INDEX ENDPOINT
   /index:
+  
     post:
       description: |
         So as to send messages to users behind a remote server, an application must register itself and obtain a shared_key and a unique_id.  
@@ -119,7 +122,12 @@ paths:
         "201":
           description: Registration succesful
           schema:
-            $ref: "#/definitions/auth"
+            type: object
+            required: 
+              - auth
+            properties:
+              auth:
+                $ref: "#/definitions/auth"
           headers:
             location:
               description: "The url of the new application"
@@ -130,6 +138,7 @@ paths:
           description: Unauthorized. Only if server does not allow public registration of new applications.
         
   /index/{unique_id}:
+  
     put:
       description: |
         To update or add information about the application such us the url or the description. Note that **title** cannot be updated.
@@ -140,8 +149,8 @@ paths:
       produces:
         - application/json
       parameters:
-        - $ref: "#/parameters/unique_id"
-        - $ref: "#/parameters/shared_key"
+        - $ref: "#/parameters/p_unique_id"
+        - $ref: "#/parameters/q_shared_key"
         - in: body
           name: app
           description: | 
@@ -150,9 +159,9 @@ paths:
           schema:
             type: object
             required: 
-              - application
+              - app
             properties:
-              application:
+              app:
                 $ref: "#/definitions/app"
       responses:
         "200":
@@ -160,10 +169,15 @@ paths:
           schema:
             type: object
             required:
-              - shared_key
+              - auth
             properties:
-              shared_key:
-                $ref: "#/definitions/shared_key"
+              auth:
+                type: object
+                required:
+                  - shared_key
+                properties:
+                  shared_key:
+                    $ref: "#/definitions/shared_key"
         "400":
           description: Bad Request.
         "401":
@@ -177,8 +191,8 @@ paths:
       produces:
         - application/json
       parameters:
-        - $ref: "#/parameters/unique_id"
-        - $ref: "#/parameters/shared_key"
+        - $ref: "#/parameters/p_unique_id"
+        - $ref: "#/parameters/q_shared_key"
       responses:
         "200":
           description: App is registered
@@ -193,8 +207,153 @@ paths:
           description: Bad Request.
         "401":
           description: Unauthorized. Application not authorized / registered.
+          
+    delete:
+      description: |
+        An application may use this endpoint to get removed from the server.
+      produces:
+        - application/json
+      parameters:
+        - $ref: "#/parameters/p_unique_id"
+        - $ref: "#/parameters/q_shared_key"
+        - $ref: "#/parameters/q_root_secret"
+      responses:
+        "200":
+          description: App is registered
+        "400":
+          description: Bad Request.
+        "401":
+          description: Unauthorized. Application not authorized / registered.
+        "403":
+          description: Forbidden. Wrong secret.
+          
+  /sub:    
+    put:
+      description: |
+        Once an application is registered in the destination server it must ask for permission to each user it needs to send messages to.  
+        This is called subscription requesting. Subscriptions are 'requested' using this endpoint and only last for a few minutes after they expire. They show a message to the user in both sides that should be observed and manually compared to ensure that there is no third party attempting to hijack the subscription.
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - $ref: "#/parameters/q_unique_id"
+        - $ref: "#/parameters/q_shared_key"
+        - in: body
+          name: app
+          description: | 
+            User to request subscription to
+          required: true
+          schema:
+            type: object
+            required:
+              - dest
+            properties:
+              dest:
+                type: object
+                required: 
+                  - user
+                properties:
+                  user:
+                    $ref: "#/definitions/user"
+      responses:
+        "201":
+          description: Subscription requested
+          schema:
+            type: object
+        "400":
+          description: Bad Request
+        "401":
+          description: Unauthorized. Not registered | wrong key.
+        "403":
+          description: Forbidden. Not allowed, not such user.
+
+    get:
+      description: |
+        An application may use this endpoint to verify if it is allowed to send messages to a user.
+      produces:
+        - application/json
+      parameters:
+        - $ref: "#/parameters/q_unique_id"
+        - $ref: "#/parameters/q_shared_key"
+        - $ref: "#/parameters/q_user"
+      responses:
+        "201":
+          description: Subscription enabled
+          schema:
+            type: object
+        "400":
+          description: Bad Request
+        "401":
+          description: Unauthorized. Not registered | wrong key.
+        "403":
+          description: Forbidden. Not allowed, not such user.
+
+  /msg:
+    post:
+      description: |
+        To send a message to a user the server must be registered and the user must have allowed it to send him messages. 
+        
+        POST method should be used to send a message.
+  
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - $ref: "#/parameters/q_unique_id"
+        - $ref: "#/parameters/q_shared_key"
+        - in: body
+          name: app
+          description: | 
+            Send Messages
+          required: true
+          schema:
+            type: object
+            required: 
+              - dest
+            properties:
+              dest:
+                type: object
+                properties:
+                  user:
+                    $ref: "#/definitions/user"
+                  users:
+                    $ref: "#/definitions/users"
+              msg:
+                $ref: "#/definitions/msg"
+      responses:
+        "201":
+          description: Message sent
+        "400":
+          description: Bad Request
+        "401":
+          description: Unauthorized. 
+        "403":
+          description: Forbidden.
+  
+          
 definitions:
 
+  msg:
+    type: object
+    required:
+      - data
+      - title
+    properties:
+      type: 
+        type: string
+      data:
+        type: string
+      title:
+        type: string
+      deliver_time:
+        type: string
+      alert_time:
+        type: string
+      ack:
+        type: string
+  
   app:
     type: object
     properties:
@@ -221,8 +380,17 @@ definitions:
         $ref: "#/definitions/shared_key"
       root_secret:
         $ref: "#/definitions/root_secret"
-        
-        
+    
+  user:
+    type: string
+    description: Id of the user in the form user@server
+    
+  users:
+    type: array
+    items:
+      type: string
+      description: Ids of the user in the form user@server
+    
   unique_id:
     type: string
     description: Id to locate applicarion in the server as part of a uri
@@ -236,26 +404,38 @@ definitions:
     description: Secret code to be kept for administration purposes.
 
 parameters:
-  
-  unique_id:
+
+  p_unique_id:
     name: unique_id
     in: path
     required: true
     type: string
     description: Id to locate applicarion in the server as part of a uri
+    
+  q_unique_id:
+    name: unique_id
+    in: query
+    required: true
+    type: string
+    description: Id to locate applicarion in the server as part of a uri
 
-  shared_key:
+  q_shared_key:
     name: shared_key
     in: query
     required: true
     type: string
     description: Key to authenticate this application within the server
 
-  root_secret:
+  q_root_secret:
     name: root_secret
     in: query
     required: true
     type: string
     description: Secret code to be kept for administration purposes.
 
-    
+  q_user:
+    name: user
+    in: query
+    required: true
+    type: string
+    description: Id of the user in the form user@server url encoded
