@@ -1,0 +1,3 @@
+{
+  "loadSwaggerFrom": "../src/application_api.yml"
+}
