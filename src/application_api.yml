@@ -64,6 +64,7 @@ info:
       | title (string)
       | description (string)
       | url (string)
+      | unsecured_source (boolean)
     | auth ({})
       | unique_id (string)
       | shared_key (string)
@@ -82,9 +83,20 @@ info:
       | validation (string)
       
     > (only on http error messages 3xx 4xx 5xx)
-    | error ({})
-      | status (string)
+    | error ({})[*]
+      | code (string)[*]
+      | unsubscribed_users (array of strings)[optional]
     ```
+    
+    ## Error codes
+    For compatibility with all http clientes. Http error responses should carry a body with an error object with the code property.
+    The parameter is a string with one of the following values
+    - bad_request
+    - registration_forbidden
+    - not_registered
+    - wrong_secret
+    - no_user
+    - not_subscribed
 
 
 basePath: /app
@@ -183,7 +195,7 @@ paths:
           description: Bad Request.
         "401":
           description: Unauthorized. Application not authorized / registered.
-        "402":
+        "403":
           description: Forbidden. Wrong root_secret.
           
     get:
@@ -203,7 +215,20 @@ paths:
               - app
             properties:
               app:
-                $ref: "#/definitions/app"
+                type: object
+                properties:
+                  title:
+                    type: string
+                    description: title of the application
+                  description:
+                    type: string
+                    description: description of the application
+                  url:
+                    type: string
+                    description: url of the application
+                  unsecured_source:
+                    type: boolean
+                    description: source might be unsecure.
         "400":
           description: Bad Request.
         "401":
@@ -220,7 +245,7 @@ paths:
         - $ref: "#/parameters/q_root_secret"
       responses:
         "200":
-          description: App is registered
+          description: App deleted
         "400":
           description: Bad Request.
         "401":
@@ -258,16 +283,26 @@ paths:
                   user:
                     $ref: "#/definitions/user"
       responses:
-        "201":
+        "200":
           description: Subscription requested
           schema:
             type: object
+            required:
+              - info
+            properties:
+              info:
+                type: object
+                required: 
+                  - validation
+                properties:
+                  validation:
+                    type: string
         "400":
           description: Bad Request
         "401":
           description: Unauthorized. Not registered | wrong key.
         "403":
-          description: Forbidden. Not allowed, not such user.
+          description: Forbidden. No such user.
 
     get:
       description: |
@@ -279,16 +314,14 @@ paths:
         - $ref: "#/parameters/q_shared_key"
         - $ref: "#/parameters/q_user"
       responses:
-        "201":
+        "200":
           description: Subscription enabled
-          schema:
-            type: object
         "400":
           description: Bad Request
         "401":
           description: Unauthorized. Not registered | wrong key.
         "403":
-          description: Forbidden. Not allowed, not such user.
+          description: Forbidden. Not such subscription.
 
   /msg:
     post:
@@ -324,14 +357,14 @@ paths:
               msg:
                 $ref: "#/definitions/msg"
       responses:
-        "201":
-          description: Message sent
+        "200":
+          description: Message sent.
         "400":
-          description: Bad Request
+          description: Bad Request.
         "401":
-          description: Unauthorized. 
+          description: Unauthorized. Not registered / wrong key. 
         "403":
-          description: Forbidden.
+          description: Forbidden. User not subscribed
   
           
 definitions:
@@ -394,7 +427,7 @@ definitions:
     
   unique_id:
     type: string
-    description: Id to locate applicarion in the server as part of a uri
+    description: Id to locate applicarion in the server
     
   shared_key:
     type: string
