@@ -27,10 +27,10 @@ info:
     > As a summary from the document 'server address resolution' and 'glossary' this are the main values that need to be considered when forgin HTTP messages.
     >  
     > Each user is identified within a server by it's *notmail*  
-    > **\<notmail> = \<user>@\<server>**  
+    > **<notmail> = <user>@<server>**  
     > 
     > Each server will present the following data as server address on a DNS resolution  
-    > **\<server_addr> = \<server_ip>:\<server_port>**
+    > **<server_addr> = <server_ip>:<server_port>**
     >
     > This data should be saved by the application in order to use this API.
     > Then all messages should contain the following data:  
@@ -59,7 +59,7 @@ info:
     ## Data groups
     All data is structured in the following object groups, and should be sent and received in those groups as root elements when they are sent in the body of the http message.
     ```
-    > (only on http error messages)
+    > (only on http 2xx messages)
     | app ({})
       | title (string)
       | description (string)
@@ -81,8 +81,9 @@ info:
     | info ({})
       | validation (string)
       
-    > (only on http error messages)
+    > (only on http error messages 3xx 4xx 5xx)
     | error ({})
+      | status (string)
     ```
 
 
@@ -129,7 +130,7 @@ paths:
               auth:
                 $ref: "#/definitions/auth"
           headers:
-            location:
+            Location:
               description: "The url of the new application"
               type: string
         "400":
