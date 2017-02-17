@@ -21,7 +21,7 @@
         function replace(xhttp) {
             document.getElementById("data").innerText = xhttp.responseText;
             var script = document.createElement('script');
-            script.src = "http://strapdownjs.com/v/0.2/strapdown.js";
+            script.src = "./scripts/strapdown.js";
             document.body.appendChild(script);
             console.log('replace');
         }
