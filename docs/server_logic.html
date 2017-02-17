@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<title>Server Logic</title>
+<body>
+    <xmp theme="united" style="visibility: hidden;" id="data">
+    </xmp>
+    <script>
+        function ajaxLoad(url, cFunction) {
+            console.log('ajax');
+            var xhttp;
+            xhttp=new XMLHttpRequest();
+            xhttp.onreadystatechange = function() {
+                if (this.readyState == 4 && this.status == 200) {
+                cFunction(this);
+                }
+            };
+            xhttp.open("GET", url, true);
+            xhttp.send();
+            console.log('ajax');
+        }
+        function replace(xhttp) {
+            document.getElementById("data").innerText = xhttp.responseText;
+            var script = document.createElement('script');
+            script.src = "http://strapdownjs.com/v/0.2/strapdown.js";
+            document.body.appendChild(script);
+            console.log('replace');
+        }
+        ajaxLoad('./releases/server_logic.md',replace);
+        
+    </script>
+    
+
+<!--
+<xmp theme="united" style="display:none;" id="data">
+    <xmp theme="united" id="data">
+    </xmp>
+    <script src="http://strapdownjs.com/v/0.2/strapdown.js"></script>
+-->
+</body>
+</html>
