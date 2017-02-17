@@ -6,6 +6,8 @@ Notmail is an open source revolutionary message and notifications delivery proto
 
 ## Online Documentation
 List of online Documentation
-1. [Application API](https://notmail.github.io/notmail_spec/application_api.html)
-1. [User API](https://notmail.github.io/notmail_spec/user_api.html)
-1. [Server Logic](https://notmail.github.io/notmail_spec/server_logic.html)
+- [Application API](https://notmail.github.io/notmail_spec/application_api.html)
+
+- [User API](https://notmail.github.io/notmail_spec/user_api.html)
+
+- [Server Logic](https://notmail.github.io/notmail_spec/server_logic.html)
