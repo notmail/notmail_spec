@@ -141,17 +141,11 @@ paths:
             properties:
               auth:
                 $ref: "#/definitions/auth"
-          headers:
-            Location:
-              description: "The url of the new application"
-              type: string
         "400":
           description: Bad Request
         "401":
           description: Unauthorized. Only if server does not allow public registration of new applications.
-        
-  /index/{unique_id}:
-  
+          
     put:
       description: |
         To update or add information about the application such us the url or the description. Note that **title** cannot be updated.
@@ -162,7 +156,7 @@ paths:
       produces:
         - application/json
       parameters:
-        - $ref: "#/parameters/p_unique_id"
+        - $ref: "#/parameters/q_unique_id"
         - $ref: "#/parameters/q_shared_key"
         - in: body
           name: app
@@ -204,7 +198,7 @@ paths:
       produces:
         - application/json
       parameters:
-        - $ref: "#/parameters/p_unique_id"
+        - $ref: "#/parameters/q_unique_id"
         - $ref: "#/parameters/q_shared_key"
       responses:
         "200":
@@ -240,7 +234,7 @@ paths:
       produces:
         - application/json
       parameters:
-        - $ref: "#/parameters/p_unique_id"
+        - $ref: "#/parameters/q_unique_id"
         - $ref: "#/parameters/q_shared_key"
         - $ref: "#/parameters/q_root_secret"
       responses:
