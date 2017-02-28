@@ -1,0 +1,392 @@
+# Notmail application API in yaml+markdown using swagger
+swagger: '2.0'
+
+# API information
+info:
+  version: "1.0.0"
+  title: Notmail - User API
+  description: |
+    ## Introduction
+    **User API** should always be used when a client needs to authenticate to retrieve messages.  
+    
+    When an application uses this API to get messages, it needs to authenticate within the server first, then it can retrieve a session id for future requests.
+
+    This API is composed by different endpoints which serve multiple purposes.
+    
+    1. __/user/auth/__  
+    A client will use this endpoint to get a session token which will use on future requests.
+    
+    1. __/user/sub/__  
+    A client will use this endpoint to retrieve a list of subscriptions, subscribe or unsubscribe.
+    
+    1. __/user/msg/__  
+    A client will use this endpoint to receive/delete messages.
+    
+    1. __/user/frozen/__  
+    A client will use this endpoint to freeze messages and get a list of saved messages.
+    
+    ## Typical Flow
+    Example of a typical flow, ignoring checks, updates etc.
+    ```
+    Server %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Application  
+    
+    1) The user authenticates on it's server
+               |-- authenticate ---->
+               <-------session------| 
+    
+    2) User subscribes to pending subs in case they exist
+               |-- subscribe -->
+               <----- ack------|
+    
+    3) User retrieves messages
+               <----- get messages ----|
+               <--------messages-------| 
+    ```
+    
+    ## Data groups
+    Elements in http url as query params:
+    ```
+    | usr (string)
+    | pwd (string)
+    | token (string)
+    | query (string)
+    | subop (string)
+    | unique_id (string)
+    | delete (string)
+    | data (string)
+    
+    ```
+    All data is structured in the following object groups, and should be sent and received in those groups as root elements **when** they are sent in the body of the http message.
+    ```
+    > (only on http 2xx messages)
+    | app ({})
+      | title (string)
+      | description (string)
+      | url (string)
+      | unsecured_source (boolean)
+      | icon (string)
+      | version (string)
+    | subs (array of {})
+      | unique_id (string)
+      | status (string)
+      | validation (string)
+    | msg ({})
+      | msg_id (string)
+      | title (string)
+      | data (string)
+      | priority (string)
+      | arrival_time (string)
+      | alert_time (string)
+      | ack (string)
+    | session ({})
+      | usr (string)
+      | token (string)
+      | exp_time
+    
+    > (only on http error messages 3xx 4xx 5xx)
+    | error ({})[*]
+    
+    ```
+    
+    ## Error codes
+    For compatibility with all http clientes. Http error responses should carry a body with an error object with the code property.
+    The parameter is a string with one of the following values
+    
+
+
+basePath: /user
+schemes:
+  - http
+
+paths:
+  # APPLICATION INDEX ENDPOINT
+  /auth:
+
+    get:
+      description: |
+        An application may use this endpoint to make an authorization and retrieve from the server a user id and a token.
+      produces:
+        - application/json
+      parameters:
+        - $ref: "#/parameters/q_notmail"
+        - $ref: "#/parameters/q_pwd"
+        - $ref: "#/parameters/q_usr"
+        - $ref: "#/parameters/q_token"
+        - $ref: "#/parameters/q_name"
+        - $ref: "#/parameters/q_params"
+        - $ref: "#/parameters/q_subs"
+      responses:
+        "200":
+          description: Authentication successful
+          schema:
+            type: object
+            required: 
+              - session
+            properties:
+              session:
+                $ref: "#/definitions/session"
+        "400":
+          description: Bad Request.
+        "401":
+          description: Unauthorized.
+       
+  /sub:    
+    get:
+      description: |
+        An application may use this endpoint to verify if it is allowed to send messages to a user.
+      produces:
+        - application/json
+      parameters:
+        - $ref: "#/parameters/q_unique_id"
+        - $ref: "#/parameters/q_shared_key"
+        - $ref: "#/parameters/q_usr"
+      responses:
+        "200":
+          description: Subscription enabled
+        "400":
+          description: Bad Request
+        "401":
+          description: Unauthorized. Not registered | wrong key.
+        "403":
+          description: Forbidden. Not such subscription.
+    put:
+      description: |
+        Once an application is registered in the destination server it must ask for permission to each user it needs to send messages to.  
+        This is called subscription requesting. Subscriptions are 'requested' using this endpoint and only last for a few minutes after they expire. They show a message to the user in both sides that should be observed and manually compared to ensure that there is no third party attempting to hijack the subscription.
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - $ref: "#/parameters/q_unique_id"
+        - $ref: "#/parameters/q_shared_key"
+        - in: body
+          name: app
+          description: | 
+            User to request subscription to
+          required: true
+          schema:
+            type: object
+            required:
+              - dest
+            properties:
+              dest:
+                type: object
+                required: 
+                  - user
+                properties:
+                  user:
+                    $ref: "#/definitions/user"
+      responses:
+        "200":
+          description: Subscription requested
+          schema:
+            type: object
+            required:
+              - info
+            properties:
+              info:
+                type: object
+                required: 
+                  - validation
+                properties:
+                  validation:
+                    type: string
+        "400":
+          description: Bad Request
+        "401":
+          description: Unauthorized. Not registered | wrong key.
+        "403":
+          description: Forbidden. No such user.
+
+
+
+  /msg:
+    post:
+      description: |
+        To send a message to a user the server must be registered and the user must have allowed it to send him messages. 
+        
+        POST method should be used to send a message.
+  
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - $ref: "#/parameters/q_unique_id"
+        - $ref: "#/parameters/q_shared_key"
+        - in: body
+          name: app
+          description: | 
+            Send Messages
+          required: true
+          schema:
+            type: object
+            required: 
+              - dest
+            properties:
+              dest:
+                type: object
+                properties:
+                  user:
+                    $ref: "#/definitions/user"
+                  users:
+                    $ref: "#/definitions/users"
+              msg:
+                $ref: "#/definitions/msg"
+      responses:
+        "200":
+          description: Message sent.
+        "400":
+          description: Bad Request.
+        "401":
+          description: Unauthorized. Not registered / wrong key. 
+        "403":
+          description: Forbidden. User not subscribed
+  
+          
+definitions:
+
+  msg:
+    type: object
+    required:
+      - data
+      - title
+    properties:
+      type: 
+        type: string
+      data:
+        type: string
+      title:
+        type: string
+      arrival_time:
+        type: string
+      alert_time:
+        type: string
+      ack:
+        type: string
+  
+  app:
+    type: object
+    properties:
+      title:
+        type: string
+        description: title of the application
+      description:
+        type: string
+        description: description of the application
+      url:
+        type: string
+        description: url of the application
+
+  session:
+    type: object
+    required:
+      - usr
+      - token
+      - expiration
+    properties:
+      usr:
+        $ref: "#/definitions/user"
+      token:
+        $ref: "#/definitions/token"
+      expiration:
+        $ref: "#/definitions/expiration"
+
+  usr:
+    type: string
+    description: User id/name got from the server
+    
+  token:
+    type: string
+    description: Token returned by the server
+  
+  expiration:
+    type: string
+    description: Time for which this sessions is valid
+
+parameters:
+
+  q_notmail:
+    name: notmail
+    in: query
+    required: true
+    type: string
+    description: Notmail address
+
+  q_pwd:
+    name: pwd
+    in: query
+    required: false
+    type: string
+    description: User password
+    
+  q_usr:
+    name: usr
+    in: query
+    required: true
+    type: string
+    description: User id/name got from the server
+    
+  q_token:
+    name: token
+    in: query
+    required: false
+    type: string
+    description: Token returned by the server
+
+  q_name:
+    name: name
+    in: query
+    required: false
+    type: string
+    description: Optional name of the session
+
+  q_params:
+    name: params
+    in: query
+    required: false
+    type: string
+    description: noexp, rdonly, msgonly
+    
+  q_subs:
+    name: subs
+    in: query
+    required: false
+    type: string
+    description: List of only-allowed subs
+    
+  q_subop:
+    name: subop
+    in: query
+    required: false
+    type: string
+    description: Operation with subscriptions (subscribe, unsubscribe)
+    
+  q_query:
+    name: query
+    in: query
+    required: false
+    type: string
+    description: Query operation option (all, subscribed, pending, app, all, sub)
+
+  q_unique_id:
+    name: unique_id
+    in: query
+    required: false
+    type: string
+    description: Unique id of an specific subscription to query for
+    
+  q_delete:
+    name: delete
+    in: query
+    required: false
+    type: string
+    description: Delete message after download
+    
+  q_data:
+    name: data
+    in: query
+    required: false
+    type: string
+    description: Get-only data field from message instead of full json
